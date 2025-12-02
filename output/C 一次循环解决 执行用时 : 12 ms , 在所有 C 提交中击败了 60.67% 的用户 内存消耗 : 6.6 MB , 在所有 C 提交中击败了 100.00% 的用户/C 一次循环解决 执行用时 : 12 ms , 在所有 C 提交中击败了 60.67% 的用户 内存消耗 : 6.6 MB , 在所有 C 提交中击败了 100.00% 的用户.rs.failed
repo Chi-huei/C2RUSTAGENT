@@ -1,0 +1,151 @@
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub struct ListNode {
+    pub val: i32,
+    pub next: Option<Box<ListNode>>,
+}
+
+impl ListNode {
+    #[inline]
+    fn new(val: i32) -> Self {
+        ListNode { next: None, val }
+    }
+}
+
+fn reverse_list(head: Option<Box<ListNode>>) -> Option<Box<ListNode>> {
+    let mut p = head;
+    let mut new_list = None;
+    
+    if p.is_none() {
+        return p;
+    }
+    
+    if let Some(ref node) = p {
+        if node.next.is_none() {
+            return p;
+        }
+    }
+    
+    while let Some(mut node) = p {
+        let tmp = node.next.take();
+        node.next = new_list;
+        new_list = Some(node);
+        p = tmp;
+    }
+    
+    new_list
+}
+
+fn reverse_k_group(head: Option<Box<ListNode>>, k: i32) -> Option<Box<ListNode>> {
+    if head.is_none() || k == 1 {
+        return head;
+    }
+    
+    if let Some(ref node) = head {
+        if node.next.is_none() {
+            return head;
+        }
+    }
+    
+    let mut current = head;
+    let mut result: Option<Box<ListNode>> = None;
+    let mut prev_tail_ref: Option<*mut ListNode> = None;
+    
+    while current.is_some() {
+        // Check if we have k nodes remaining
+        let mut count = 0;
+        let mut temp = current.as_ref();
+        while count < k && temp.is_some() {
+            temp = temp.unwrap().next.as_ref();
+            count += 1;
+        }
+        
+        if count < k {
+            // Not enough nodes for a complete group
+            if let Some(tail_ptr) = prev_tail_ref {
+                unsafe {
+                    (*tail_ptr).next = current;
+                }
+            } else {
+                return current;
+            }
+            break;
+        }
+        
+        // Extract k nodes
+        let mut group_head = current;
+        let mut group_end = current.as_mut();
+        for _ in 1..k {
+            if let Some(node) = group_end {
+                group_end = node.next.as_mut();
+            }
+        }
+        
+        // Cut the group from the rest
+        if let Some(node) = group_end {
+            current = node.next.take();
+        }
+        
+        // Reverse the group
+        let reversed_group = reverse_list(group_head);
+        
+        // Connect to the result
+        if result.is_none() {
+            result = reversed_group;
+        } else if let Some(tail_ptr) = prev_tail_ref {
+            unsafe {
+                (*tail_ptr).next = reversed_group;
+            }
+        }
+        
+        // Find the new tail (last node of the reversed group)
+        let mut new_tail = result.as_mut();
+        while let Some(node) = new_tail {
+            if node.next.is_none() {
+                prev_tail_ref = Some(node as *mut ListNode);
+                break;
+            }
+            new_tail = node.next.as_mut();
+        }
+        
+        // If this is not the first group, find the actual tail
+        if prev_tail_ref.is_some() && result.is_some() {
+            let mut tail_finder = result.as_mut();
+            while let Some(node) = tail_finder {
+                if node.next.as_ref().map_or(false, |next| {
+                    next.as_ref() as *const ListNode == unsafe { prev_tail_ref.unwrap() }
+                }) {
+                    // Found the node before our tail, update prev_tail_ref
+                    if let Some(next_node) = node.next.as_mut() {
+                        let mut actual_tail = next_node.as_mut();
+                        while actual_tail.next.is_some() {
+                            actual_tail = actual_tail.next.as_mut().unwrap();
+                        }
+                        prev_tail_ref = Some(actual_tail as *mut ListNode);
+                    }
+                    break;
+                }
+                tail_finder = node.next.as_mut();
+            }
+        }
+    }
+    
+    result
+}
+
+fn main() {
+    // Test function
+    let mut node1 = ListNode::new(1);
+    let mut node2 = ListNode::new(2);
+    let mut node3 = ListNode::new(3);
+    let mut node4 = ListNode::new(4);
+    let node5 = ListNode::new(5);
+    
+    node4.next = Some(Box::new(node5));
+    node3.next = Some(Box::new(node4));
+    node2.next = Some(Box::new(node3));
+    node1.next = Some(Box::new(node2));
+    
+    let head = Some(Box::new(node1));
+    let result = reverse_k_group(head, 2);
+    println!("{:?}", result);
+}
